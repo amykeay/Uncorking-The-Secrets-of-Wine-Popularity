@@ -1,0 +1,381 @@
+---
+title: "PSY6422 Project"
+author: "Amy Keay"
+date: "2025-12-12"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+    theme: journal
+---
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r echo=FALSE, fig.align='center',out.width='\\linewidth'}
+knitr::include_graphics("/Users/amykeay/Documents/masters degree 🧠/PSY6422 Data Analysis and Visualisation 📊/Uncorking-The-Secrets-of-Wine-Popularity/R_Markdown/heading_1.png")
+
+```
+
+# Data Origins 
+Data was obtained from [“Data Is Plural”](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://www.data-is-plural.com/&ved=2ahUKEwjF3KWz5YiRAxUEVkEAHVTHKrYQFnoECCgQAQ&usg=AOvVaw21waTAlcdAq2a68pmQCcr2) a newsletter of useful and curious datasets published by Jeremy Singer-Vine. There have been 400 editions, dating from October 21, 2015 to August 27, 2025. 
+
+The dataset used for this project, ["X-Wines Dataset"](https://github.com/rogerioxavier/X-Wines) by Rogério Xavier de Azambuja et al., comprises Wines and Wine Ratings of 100,000+ wines produced in 60+ countries and is publicly accessible on GitHub.The data was collected and standardised from “wine-specialised websites,” winery websites, and other sources and indicates each wine’s name, type, grape varieties, alcohol level, acidity level, country, region, winery and vintages. It also includes ratings on a 1-to-5 scale of those wines by 1 million anonymised users.
+
+This project uses variables from this data including WineID, WineName, Type, ABV, Body, Acidity and Country. 
+
+# Research Questions 
+The aim of this project is to determine whether certain characteristics of wine including Type, ABV, Body and Acidity, have an effect on popularity (operationalised on a 1-to-5 scale, higher ratings represent more popular wine - refered to throughout this project as Overall Rating). 
+
+Additionally, I aimed  to see if these characteristics of wine including Type, ABV, Body and Acidity differ across countries.
+
+# Data Preparation 
+### Loading Required Packages 
+```{r setup-packages, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(maps)
+library(patchwork)
+library(tidyr)
+library(sf)
+library(leaflet)
+library(tools)
+library(rnaturalearth)
+library(rnaturalearthdata)
+```
+
+### Importing Data 
+```{r, message=FALSE, warning=FALSE}
+#Import Wine Information Data
+Wine_Info <- read_csv("Wine_Info.csv")
+#Import Wine Ratings Data
+Wine_Ratings <- read_csv("Wine_Ratings.csv")
+```
+
+```{r}
+#here is the first few rows of raw data for Wine Information Data
+head(Wine_Info, 10)
+
+#here is the first few rows of raw data for Wine Ratings Data
+head(Wine_Ratings, 10)
+```
+
+### Cleaning Data 
+This is the process of cleaning my data for the Wine Information Dataset.
+```{r}
+#select columns of raw data to keep from Wine Information Data
+Wine_Info <- Wine_Info %>% 
+  select(WineID, WineName, Type, ABV, Body, Acidity, Country, RegionName, Vintages)
+```
+
+This is the process of cleaning my data for the Wine Ratings Dataset.
+```{r}
+#select columns of raw data to keep from Wine Ratings Data
+Wine_Ratings <- Wine_Ratings %>% 
+  select(WineID, Vintage, Rating)
+
+#sort columns of Wine Ratings Data in order of WineID
+Wine_Ratings <- Wine_Ratings[order(Wine_Ratings$WineID), ]
+
+#create overall wine rating for each Wine Name (WineID)
+Wine_Overall <- Wine_Ratings %>%
+  group_by(WineID) %>% 
+  summarise(overall_rating = mean(Rating, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+This is the process of merging the datasets so that I have a comprehensive dataset that includes wine information and an average rating for each individual wine in the dataset.
+```{r}
+#merge datasets to one including both Wine Information and Overall Wine Rating
+Wine_Final <- Wine_Info %>%
+  left_join(Wine_Overall, by = "WineID")
+```
+
+# Visualisations 
+### Creating a Colour Vector 
+Before creating visualisations, I created a colour vector so that each wine type was associated with a colour. 
+```{r}
+#creating colour vector for each wine type 
+wine_colours <- c(
+"Red" = "red3",
+"White" = "lightgoldenrod",
+"Sparkling" = "lemonchiffon",
+"Rosé" = "pink",
+"Dessert/Port" = "deeppink4",
+"Dessert" = "deeppink4"
+)
+#merge wine type colour vector into data 
+Wine_Final$WineTypeColour <- wine_colours[Wine_Final$Type]
+```
+Additionally, I created a custom theme function so that all visualisations will look cohesive throughout the project. 
+```{r}
+# creating a custom theme function for all visualisations 
+theme_project <- function() {
+  theme_minimal() +
+    theme(
+      legend.position = "right",
+      plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+      axis.title = element_text(size = 16),
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "#fff0f3", color = "grey80")
+    )
+}
+```
+
+### Basic Bar Plots 
+I created a series of bar graphs that showed individually the distributions of specific wine Characteristics across each wine in the data, each wine in the graphs are colour coded by wine Type using the colour vector I created. The bar plots I made are: 
+
+ABV Percentage by WineID
+
+Body by WineID
+
+Acidity by WineID
+
+Overall Rating by WineID
+```{r, message=FALSE, warning=FALSE}
+#ABV by WineID (with colour coded bars)
+p1_barplot <- ggplot(Wine_Final, aes(x = as.factor(WineID), y = ABV, fill = Type)) +
+  geom_col(color = "black") +
+  labs(title = "ABV Percentage by WineID", 
+       x = "WineID", y = "ABV Percentage") +
+  scale_fill_manual(values = wine_colours) +
+  theme_project()
+
+#Body by WineID (with colour coded bars)
+p2_barplot <- ggplot(Wine_Final, aes(x = as.factor(WineID), y = Body, fill = Type)) +
+  geom_col(color = "black") +
+  labs(title = "Body by WineID", 
+       x = "WineID", y = "Body") +
+  scale_fill_manual(values = wine_colours) +
+  theme_project()
+
+#Acidity by WineID (with colour coded bars)
+p3_barplot <- ggplot(Wine_Final, aes(x = as.factor(WineID), y = Acidity, fill = Type)) +
+  geom_col(color = "black") +
+  labs(title = "Acidity by WineID", 
+       x = "WineID", y = "Acidity") +
+  scale_fill_manual(values = wine_colours) + 
+  theme_project()
+
+#Overall Ratings by WineID (with colour coded bars)
+p4_barplot <- ggplot(Wine_Final, aes(x = as.factor(WineID), y = overall_rating, fill = Type)) +
+  geom_col(color = "black") +
+  labs(title = "Overall Rating by WineID", 
+       x = "WineID", y = "Overall Rating") +
+  scale_fill_manual(values = wine_colours) + 
+  theme_project()
+
+```
+
+```{r, fig.width=15, fig.height=10}
+p1_barplot + p2_barplot + p3_barplot + p4_barplot
+```
+I then created a series of bar graphs that showed the distributions of specific wine characteristics across each wine in the data grouped by Country. The bar plots I made are: 
+
+ABV Percentage by WineID Grouped by Country
+
+Body by WineID Grouped by Country
+
+Acidity by WineID Grouped by Country
+
+Overall Rating by WineID Grouped by Country
+```{r, fig.width=15, fig.height=5}
+#ABV by Country (with colour coded bars)
+ggplot(Wine_Final, aes(x = Country, y = ABV, fill = Type)) +
+  geom_col(aes(group = interaction(Type, WineID)),
+           color = "black",
+           position = position_dodge(width = 0.9)) +
+  labs(title = "ABV % by Country and Type",
+       x = "Country", y = "ABV %") +
+  scale_fill_manual(values = wine_colours) +
+  theme_project()
+
+#Body by WineID (with colour coded bars)
+ggplot(Wine_Final, aes(x = Country, y = Body, fill = Type)) +
+  geom_col(aes(group = interaction(Type, WineID)),
+           color = "black",
+           position = position_dodge(width = 0.9)) +
+  labs(title = "Body by Country and Type",
+       x = "Country", y = "Body") +
+  scale_fill_manual(values = wine_colours) +
+  theme_project()
+
+#Acidity by WineID (with colour coded bars)
+ggplot(Wine_Final, aes(x = Country, y = Acidity, fill = Type)) +
+  geom_col(aes(group = interaction(Type, WineID)),
+           color = "black",
+           position = position_dodge(width = 0.9)) +
+  labs(title = "Acidity by Country and Type",
+       x = "Country", y = "Acidity") +
+  scale_fill_manual(values = wine_colours) +
+  theme_project()
+
+#Overall Ratings by WineID (with colour coded bars)
+ggplot(Wine_Final, aes(x = Country, y = overall_rating, fill = Type)) +
+  geom_col(aes(group = interaction(Type, WineID)),
+           color = "black",
+           position = position_dodge(width = 0.9)) +
+  labs(title = "Overall Rating by Country and Type",
+       x = "Country", y = "Overall Rating") +
+  scale_fill_manual(values = wine_colours) +
+  theme_project()
+```
+
+
+## Final Visualisation(s) ##
+After creating the bar plots above showing the distributions of specific wine characteristics across each wine in the data grouped by Country, for my final visualisation I wanted to combine the bar plots into one comprehensive plot that showed ABV Percentage, Body, Acidity and Overall Rating of each individual wine. I attempted to create this visualisation with all 100 wines in the dataset and created some extremely difficult to interpret plots, none of which clearly showed the difference in characteristics between wines that I originally wanted. 
+
+This issue led me to create a dataset called "Top_Wines" which only contained the top rated wines from each country in the dataset, changing the total number of wines from 100 to 17. 
+
+### Creating Top_Wines Data 
+This is the process of cleaning my original data to create the Top Wines Dataset.
+```{r}
+#create new data by keeping wines with highest ratings per country 
+Top_Wines <- Wine_Final %>%
+  group_by(Country) %>%
+  slice_max(overall_rating, n = 1)
+```
+
+### Cleaning Top_Wines Data to be Plotted 
+Cleaning the Top_Wines data was neccessary so that all values could be plotted cleanly. This involved converting groups (such as Body and Acidity) to numeric values, dividing ABV values by 10 so that they did not dominate the graph and rounding overall ratings to 2 decimal places. 
+```{r}
+#Preparing numeric attribute data (converting groups to numbers so they can be plotted)
+Top_Wines <- Top_Wines %>%
+  mutate(
+    Body_num = recode(Body,
+                      "Very light-bodied" = 1,
+                      "Light-bodied" = 2,
+                      "Medium-bodied" = 3,
+                      "Full-bodied" = 4,
+                      "Very full-bodied" = 5),
+    
+    Acidity_num = recode(Acidity,
+                         "Low" = 1,
+                         "Medium" = 2,
+                         "High" = 3),
+    
+    ABV_num = ABV / 10 
+  )
+#Round overall rating to 2 decimal places (so that plots can be cleaner)
+Top_Wines$overall_rating <- round(Top_Wines$overall_rating, 2)
+
+#modifying colour vector for each wine type 
+wine_colours_plot <- c(
+  "Red" = "#CD0000",
+  "White" = "#EEDD82",
+  "Sparkling" = "#FFFACD")
+
+
+#Convert to long format (required for grouped bars)
+wine_long <- Top_Wines %>%
+  select(Type, Country, ABV_num, Body_num, Acidity_num, overall_rating) %>%
+  pivot_longer(
+    cols = c(ABV_num, Body_num, Acidity_num, overall_rating),
+    names_to = "Attribute",
+    values_to = "Value"
+  )
+```
+
+After cleaning the data so that each variable could be plotted, I created a grouped bar plot showing the characteristics (ABV, Body, Acidity and Overall Rating) of the Top wine arranged by Country. 
+```{r, fig.width=15, fig.height=12}
+ggplot(wine_long, aes(x = Attribute, y = Value, fill = Type)) +
+  geom_col() +
+  facet_wrap(~ Country) +
+  scale_fill_manual(values = wine_colours_plot) +
+  labs(
+    title = "Characteristics of the Most Popular Wine by Country",
+    x = "Characteristic",
+    y = "Value"
+  ) +
+  theme_project() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right",
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+    axis.title = element_text(size = 14),
+  )
+```
+
+
+**I then created my final visualisation showing the most popular wines of the countries included in this data plotted on an interactive map.**
+
+
+### Preparing Data to be Plotted as a map
+```{r}
+#loading world map 
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Make sure country names are character and trimmed
+Top_Wines$Country <- trimws(as.character(Top_Wines$Country))
+world$admin <- trimws(as.character(world$admin))
+
+#recode that handles different spellings and extra spaces so that it matches the world map
+Top_Wines$Country <- dplyr::recode(
+  Top_Wines$Country,
+  "USA" = "United States of America",
+  "United States" = "United States of America",
+  "UK" = "United Kingdom",
+  "South Korea" = "Korea, Republic of"
+)
+
+# Keep only countries present in the world map
+Top_Wines <- Top_Wines %>% filter(Country %in% world$admin)
+
+# Join wine data to the world map
+world_wine <- world %>%
+  left_join(Top_Wines, by = c("admin" = "Country"))
+
+# Keep only countries with geometry and wine data
+world_wine_plot <- world_wine %>%
+  filter(!st_is_empty(geometry)) %>%
+  filter(!is.na(Type))
+```
+
+Next was the process of assigning the Wine Type colour vector to the countries for the map. 
+```{r}
+#Standardize Type column
+world_wine_plot$Type <- as.character(world_wine_plot$Type)
+world_wine_plot$Type <- trimws(world_wine_plot$Type)
+world_wine_plot$Type <- toTitleCase(world_wine_plot$Type)  
+
+#Assign colour map 
+world_wine_plot$fill_colour <- wine_colours_plot[ world_wine_plot$Type ]
+world_wine_plot$fill_colour <- as.character(world_wine_plot$fill_colour)
+world_wine_plot$fill_colour[is.na(world_wine_plot$fill_colour)] <- "#CCCCCC"
+```
+
+### Plotting Top_Wines as a map for my Final Visualisation
+After this, the wine data could be plotted onto a world map with the Top Wines colour coded by Wine Type and other countries with no wine data remaining grey. 
+This map is interactive so when hovering on a country you will be able to see the Country, Wine Name, Type, ABV, Body and Acidity (countries with no wine data will display NA for all characteristics).
+```{r, fig.width=10, fig.height=5}
+leaflet(world_wine_plot) %>%
+  addTiles() %>%
+  setView(lng = 0, lat = 0, zoom = 1) %>%
+  addPolygons(
+    fillColor = ~fill_colour,
+    weight = 1,
+    color = "black",
+    fillOpacity = 0.8,
+    highlight = highlightOptions(weight = 3, color = "white", bringToFront = TRUE),
+    label = ~paste0(
+      "<strong>", admin, "</strong><br/>",
+      "<strong>Wine:</strong> ", WineName, "<br/>",
+      "<strong>Type:</strong> ", Type, "<br/>",
+      "<strong>ABV:</strong> ", ABV, "%<br/>",
+      "<strong>Acidity:</strong> ", Acidity, "<br/>",
+      "<strong>Body:</strong> ", Body
+    ) %>% lapply(htmltools::HTML)
+  ) %>%
+addLegend(
+  position = "bottomright",
+  colors = c("#CD0000", "#EEDD82", "#FFFACD"),
+  labels = c("Red", "White", "Sparkling"),
+  opacity = 0.8,
+  title = "Wine Type"
+)
+```
+
+
+# Summary
+Overall this project wasn't half as bad as I originally thought it would be! At the start of the module, I'd never heard of RStudio and now I have completed a full (mini) project that I'm really quite happy with that includes several different plots with a cohesive colour scheme. If I had more time for this project I would have loved to find a way of visualising all 100 wines in my original dataset across the 4 characteristics (ABV, Acidity, Body and Overall Rating) all at once without it looking chaotic.  
